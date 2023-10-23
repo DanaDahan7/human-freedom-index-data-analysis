@@ -334,8 +334,8 @@ lr_data %>%
     max = max(womensfreedom))
 ```
 
-So according to graphs of density and summaries of the explained variable and the explanatory variable, it can be seen that the freedom level of women is quite high, the median stands at 9.26, and the density extremely high in the graph between the freedom level of 9-10.
-The level of freedom in the country is more moderate, does not reach 10, and in most countries the level of freedom is between 7.5-8.5
+So according to the graphs of density, the summaries of the explained variable and the explanatory variable, it can be seen that the freedom level of women is quite high, the median stands at 9.26, and the density is extremely high in the graph between the freedom level of 9-10.
+The level of freedom in the country is more moderate, does not reach to 10, and in most of the countries the level of freedom is between 7.5-8.5.
 
 
 
@@ -362,8 +362,8 @@ scatter.smooth(x=lr_data$womensfreedom, y=lr_data$FreedomLevel,
 ```
 
 We can see that there is a connection between the level of women's freedom and the level of state freedom, but it is not strong.
-Some interesting findings: There is a country whose level of freedom is above 7.5 and the level of freedom of women is less than 2, and two other countries whose freedom in the country is around 6 and women's freedom is around 0-1.
-Also, there is a country whose level of freedom is around 6 but the level of freedom of women is 10, and there are many countries whose level of freedom of women is 10 and the level of freedom of states is interpreted from 7-9.
+Some interesting findings: There is a country that the level of freedom is above 7.5 and the level of freedom of women is less than 2, and two other countries whose freedom in the country is around 6 and women's freedom is around 0-1.
+Also, there is a country that the level of freedom is around 6 but the level of freedom of women is 10, and there are many countries whose level of freedom of women is 10 and the level of freedom of states is interpreted from 7-9.
 
 ```{r}
 summary(lr_mod)
