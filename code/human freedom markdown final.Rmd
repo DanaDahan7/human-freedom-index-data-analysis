@@ -1,0 +1,404 @@
+---
+title: "The Human Freedom"
+author: "Yontan Klyiner and Dana Dahan"
+date: "24 6 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Background
+
+In this markdown, we analyze [this](https://www.kaggle.com/gsutters/the-human-freedom-index) data that shows us parameters of freedom for each and every one of the countries that include in the dataset.
+
+## Goals
+
+In our research, we will focus on two main questions:
+
+  * Do Western countries reflect more freedom than the Eastern countries? 
+  
+  * Does the level of freedom of the whole country affect the level of freedom of women?
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library("ggmap")
+library("maps")
+library("plyr")
+
+```
+
+## Importing the data set
+The dataset was in a csv file - a convenient format to work with. 
+```{r read freedom_origin_data dataset,message=FALSE, warning=FALSE, echo=FALSE}
+freedom_origin_data <- read.csv("The Human Freedom.csv", TRUE, ",")
+glimpse(freedom_origin_data)
+```
+
+# Transformation, Visualization, and Modelling
+
+
+## Transforming
+In the transformation stage, we transformed the data for two of our research questions. 
+First, for the East vs. West question we created three datasets : South_Asia, East_Asia ,Western_Europe.These datasets are super useful to us in the modeling stage for introducing hypothesis test and visualization.
+So we created a dataset for each pair of the three (East Asia, South Asia and Western Europe), and a dataset for each of them together. We took data on each of the regions between the years 2016-2018 to achieve a large number of observations.
+We created a new column named “total_freedom” or "row_means" that represent the mean of all the freedom elements that country has in the dataset. 
+We did not include the two parameters - "ef_rank, hf_rank" because they distorted our average, they were measured between 0-100 and not between 0-10 like all the other columns of the data. 
+
+```{r transforming the dataset, echo=TRUE}
+South_Asia <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank))%>%
+  filter(year == 2018 | year == 2017 | year == 2016)%>%
+  filter(region == "South Asia")
+
+RowMeanSouthAsia <- rowMeans(South_Asia[6:111], na.rm = TRUE, dims = 1)
+South_Asia["row_means"] <- RowMeanSouthAsia
+
+East_Asia <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank))%>%
+  filter(year == 2018 | year == 2017 | year == 2016)%>%
+  filter(region == "East Asia")
+
+RowMeanEastAsia <- rowMeans(East_Asia[6:111], na.rm = TRUE, dims = 1)
+East_Asia["row_means"] <- RowMeanEastAsia
+
+ 
+Western_Europe <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank))%>%
+  filter(year == 2018 | year == 2017 | year == 2016)%>%
+  filter(region == "Western Europe")%>%
+  view()
+RowMeanWesternEurope <- rowMeans(Western_Europe[6:111], na.rm = TRUE, dims = 1)
+Western_Europe["row_means"] <- RowMeanWesternEurope 
+
+
+East_and_West <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank)) %>% 
+  filter(region == "Western Europe"| region =="South Asia" | region == "East Asia",
+         year == 2018) 
+  
+
+east_and_west_row_means <- c(rowMeans(East_and_West[6:111], na.rm = TRUE, dims = 1))
+
+East_and_West["total_freedom"] <- east_and_west_row_means
+
+
+```
+
+Secondly for the women freedom question, we created an additional dataset : "freedom_data_world". With this dataset we used for visualization.
+Also in the Women Freedom question we needed to calculate the mean of freedom elements in each and every country that represent the country level of freedom. Furthermore, in the data set we used the column "womens_freedom" that presents the mean of women freedom parameters (which include six parameters in the dataset).
+
+```{r}
+freedom_data_world <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank))%>%
+  filter(year == 2018 )
+
+total_means <- c(rowMeans(freedom_data_world[6:111], na.rm = TRUE, dims = 1))
+
+
+freedom_data_world <- transform( freedom_data_world,
+    impact_means =womens_freedom / total_means)
+```
+
+## Transformation and Visualization
+Visualization to show differences in the level of freedom of East Asia, Western Europe, and South Asia:
+
+```{r east west}
+qplot(data = East_and_West ,
+      y = total_freedom,x = region ,
+      main = "East and West Freedom ",
+      fill = region,geom = "boxplot")
+```
+
+We can see that the level of the Western Europe freedom is higher, but not in much different from East Asia. However the level of freedom in South Asia is lower comparing to East Asia and Western Europe.
+
+
+Visualization to show the relationship between the level of freedom of women and the general level of freedom in the country (the greener the stronger the connection):
+
+```{r world impact on women}
+world_map <- map_data("world")
+
+world_with_freedom <-left_join(world_map,freedom_data_world, by =  c("region" = "countries") )
+ggplot(world_with_freedom, 
+       aes(x = long, y = lat, group = group, fill = impact_means))+
+  geom_polygon() + 
+  scale_fill_viridis_c()
+```
+
+It can be seen that the variances between the countries of the world are quite large, meaning that there is no significant connection between the level of freedom of women and the level of freedom in the country.
+
+## Modelling
+
+Let's get down to business. Visualization to show the different variances between three populations (East Asia, Western Europe, and South Asia). This is a preliminary stage for testing hypotheses about the expectation difference.
+We have centralized the data to be relevant only to regions related to the research question.
+
+
+```{r}
+
+freedom_data <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank))%>%
+  filter(year == 2018 | year == 2017 | year == 2016)%>%
+  filter(region == "East Asia" | region == "South Asia" | region == "Western Europe")%>%
+  view()
+RowMeanFreedomData <- rowMeans(freedom_data[6:111], na.rm = TRUE, dims = 1)
+freedom_data["row_means"] <- RowMeanFreedomData
+freedom_data%>% #create a row that represent the mean of freedom at each country
+  view()
+
+#Visualization to distinguish the variance with the help of a density graph:
+ggplot(freedom_data, aes(color = region, x = row_means)) +
+  geom_density()
+```
+
+It's seems the variance in South and East Asia is much bigger than the variance in Western Europe.
+
+
+We will now examine whether in the sample countries of Western Europe the average freedom is greater then the sample countries of East Asia:
+
+
+Testing hypotheses about equality of expectation between two populations East and West:
+
+H0: mu_West = mu_East
+
+H1: mu_West > mu_East
+```{r}
+t.test(Western_Europe %>% pull(row_means),
+       East_Asia %>% pull(row_means), alternative = "greater")
+```
+
+Because p_value is bigger than alpha, we are accepting H0, which say's there is no big 
+difference in the level of freedom between East Asia and Western Europe. 
+
+
+Here we'll check comparison of variance between East Asia and Western Europe:
+
+H0: sigma_West / sigma_East = 1
+
+H1:  sigma_West / sigma_East < 1
+```{r}
+var.test(Western_Europe %>% pull(row_means),
+         East_Asia %>% pull(row_means), alternative = "less")
+```
+
+Because p_value is smaller that alpha we're rejecting H0. It means the true ratio of variances is less than 1.
+
+East Asia and Western Europe data transformation for visualization:
+```{r}
+EastVSWest <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank)) %>% 
+  filter(region == "Western Europe"| region == "East Asia", 
+         year == 2018 | year == 2017 | year == 2016)
+EastVSWest_row_means <- c(rowMeans(EastVSWest[6:111], na.rm = TRUE, dims = 1))
+EastVSWest["row_means"] <- EastVSWest_row_means
+EastVSWest%>%
+  view() 
+
+qplot(data = EastVSWest ,
+      y = row_means,x = region ,
+      main = "East Asia and Western Europe Freedom ",
+      fill = region,geom = "boxplot")+
+    scale_y_continuous(name="freedom level")
+```
+
+
+Therefore, there is no big difference between the level of freedom of East Asia and the level of freedom of Western Europe, but the variances of the regions are not equal.
+
+
+We will now examine whether in the sample countries of Western Europe the average freedom is greater than that of the sample countries of South Asia.
+
+
+Testing hypotheses about equality of expectation between two populations South Asia and western Europe:
+
+H0: mu_West = mu_South
+
+H1: mu_West > mu_South
+```{r}
+t.test(Western_Europe %>% pull(row_means),
+       South_Asia %>% pull(row_means), alternative = "greater")
+```
+Because p_value is smaller than alpha, we are rejecting H0. Therefore, there is actual difference in the level of freedom between South Asia and western Europe. 
+
+Here we'll check comparison of variance between South Asia and Western Europe:
+
+H0: sigma_West / sigma_South = 1
+
+H1:  sigma_West / sigma_South < 1
+```{r}
+var.test(Western_Europe %>% pull(row_means),
+         South_Asia %>% pull(row_means), alternative = "less")
+```
+Because p_value is smaller that alpha we're rejecting H0, it means the true ratio of variances is less than 1.
+
+South Asia and Western Europe data transforming for visualization:
+```{r}
+SouthVSWest <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank)) %>% 
+  filter(region == "Western Europe"| region == "South Asia", 
+         year == 2018 | year == 2017 | year == 2016)
+SouthVSWest_row_means <- c(rowMeans(SouthVSWest[6:111], na.rm = TRUE, dims = 1))
+SouthVSWest["row_means"] <- SouthVSWest_row_means
+SouthVSWest%>%
+  view() 
+
+qplot(data = SouthVSWest ,
+      y = row_means,x = region , 
+      main = "South Asia and Western Europe Freedom level",
+      fill = region,geom = "boxplot") +
+    scale_y_continuous(name="freedom level")
+```
+
+The average freedom of Western European countries is higher than the average freedom of South Asian countries.And the variances are not equal either.
+
+
+Now we will examine whether the average freedom in the sample countries of East Asia is greater than the average freedom of the sample countries in South Asia.
+
+Testing hypotheses about equality of means between east Asia and south Asia:
+
+H0: mu_east = mu_south
+
+H1: mu_east != mu_south
+```{r}
+t.test(South_Asia %>% pull(row_means),
+       East_Asia %>% pull(row_means))
+```
+Because p_value is bigger than alpha, we are accepting H0, which say's there is no big difference in the level of freedom between East Asia and South Asia. 
+
+Here we'll check comparison of variance between east Asia and South Asia:
+
+H0: sigma_east / sigma_south = 1
+
+H1:  sigma_east / sigma_south != 1
+```{r}
+var.test(South_Asia %>% pull(row_means),
+         East_Asia %>% pull(row_means))
+```
+Because p_value is bigger that alpha we're accepting H0, it means the ratio of variances is close to 1.
+
+
+South Asia and East Asia data transforming for visualization:
+```{r}
+SouthVSEast <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank)) %>% 
+  filter(region == "East Asia"| region == "South Asia", 
+         year == 2018 | year == 2017 | year == 2016)
+SouthVSEast_row_means <- c(rowMeans(SouthVSEast[6:111], na.rm = TRUE, dims = 1))
+SouthVSEast["row_means"] <- SouthVSEast_row_means
+SouthVSEast%>%
+  view() 
+
+qplot(data = SouthVSEast ,
+      y = row_means,x = region , 
+      main = "South Asia and East Asia Freedom level",
+      fill = region,geom = "boxplot") +
+  scale_y_continuous(name="freedom level")
+
+```
+
+The average freedom of South Asian countries is significantly lower than the average freedom of East Asian countries! And here, too, differences between variances are not equal.
+
+
+A linear regression model is now done to test the dependence of the level of freedom of women, on the explanatory variable - the general level of freedom in the country.
+
+Edit origin data set for linear regression test:
+
+x = women freedom's level (depended variable). 
+
+y = country freedom's level (independent variable).
+```{r}
+lr_data <- subset(freedom_origin_data, select = -c(ef_rank, hf_rank))%>%
+  filter(year == 2018)
+total_means <- c(rowMeans(lr_data[6:111], na.rm = TRUE, dims = 1))
+lr_data["row_means"] <- total_means
+lr_data <- lr_data %>%
+  mutate(FreedomLevel = row_means,
+         womensfreedom = womens_freedom)%>%
+  group_by(FreedomLevel, womensfreedom) %>%
+  tally()
+```
+
+Visual women's freedom density and country's freedom density:
+```{r}
+ggplot(data=lr_data, aes(womensfreedom)) + 
+  geom_density(col="white",fill="#FFCC00", alpha=0.8) + 
+  ggtitle("Density Plot of women freedom's level")
+ggplot(data=lr_data, aes(FreedomLevel)) + 
+  geom_density(col="white", fill="#FF9900", alpha=0.8) + 
+  ggtitle("Density Plot of country freedom's level")
+```
+
+Summary of women's freedom and country's freedom:
+```{r}
+lr_data %>%
+  summarise(
+    min = min(FreedomLevel),
+    median = median(FreedomLevel),
+    max = max(FreedomLevel))
+
+lr_data %>%
+  summarise(
+    min = min(womensfreedom),
+    median = median(womensfreedom),
+    max = max(womensfreedom))
+```
+
+So according to graphs of density and summaries of the explained variable and the explanatory variable, it can be seen that the freedom level of women is quite high, the median stands at 9.26, and the density extremely high in the graph between the freedom level of 9-10.
+The level of freedom in the country is more moderate, does not reach 10, and in most countries the level of freedom is between 7.5-8.5
+
+
+
+The linear regression model:
+```{r}
+lr_mod <- lm(formula = log(lr_data$FreedomLevel) ~ 
+               lr_data$womensfreedom)
+print(lr_mod)
+```
+
+Visualization for linear regression:
+```{r}
+lr_data %>% 
+  ggplot(aes(y=FreedomLevel, x= womensfreedom))+
+  geom_point(color="#6699FF")+
+  theme_bw() +
+  scale_y_log10()+
+  stat_smooth(method = "lm",color="#000099")+
+  xlab("women freedom's level") + ylab("country freedom's level")
+
+scatter.smooth(x=lr_data$womensfreedom, y=lr_data$FreedomLevel, 
+               main="women ~ country", xlab = "women freedom's level",
+               ylab = "country freedom's level") 
+```
+
+We can see that there is a connection between the level of women's freedom and the level of state freedom, but it is not strong.
+Some interesting findings: There is a country whose level of freedom is above 7.5 and the level of freedom of women is less than 2, and two other countries whose freedom in the country is around 6 and women's freedom is around 0-1.
+Also, there is a country whose level of freedom is around 6 but the level of freedom of women is 10, and there are many countries whose level of freedom of women is 10 and the level of freedom of states is interpreted from 7-9.
+
+```{r}
+summary(lr_mod)
+
+```
+
+The R-Squared is pretty low, around 0.38 which means that only 38% of the variation in the dependent variable is explained by the independent variable. 
+However, we can consider a linear model to be statistically significant only when p-value is less then the statistical significance level, which is 0.05. This is visually interpreted by the significance stars at the end of the row. The more stars beside the variable’s p-value, the more significant the variable. Here we can see that there is three stars which is the most significant.
+Therefore we are rejecting the null hypothesis that the coefficient equals zero, and we are accepting the alternative hypothesis, which means there is some connection between the dependency of women's level of freedom on the country's level of freedom.
+
+
+
+# Conclusion
+
+We checked the two main questions :
+
+  * Do Western countries reflect more freedom than the Eastern countries? 
+  
+  * Does the level of freedom of the whole country affect the level of freedom of women?
+
+In summary, The first question showed level of freedom in the sample countries of Western Europe and the sample countries of East Asia is higher than the level of freedom of the sample countries of South Asia. Between Western Europe and East Asia there is not much difference in the level of freedom.
+The second question showed women's freedom is related to the general level of freedom in the country, but the relationship is not significant.
+
+Restrictions:
+
+Unfortunately, in our data there were only six countries in East Asia, compared to 17 countries in Western Europe and South Asia.
+In addition, taking an average of all the parameters to represent the level of freedom in the country is not very accurate, yes there are parameters that affect the level of freedom in the country more and those less, but this is already outside our research areas.
+
+Also, the data contained only six parameters of women out of 110 general parameters. Therefore, many data indicating the level of freedom of women may not have been included in our data and this may impair the reliability of the study and the conclusions.
+
+The data was interesting and the research questions really created interest in us and a desire to know what conclusions we would reach. Finally, the questions we asked from the data we took deal more with the humanities and less with a topic that can be quantified into numbers. We took data that is difficult to measure or quantify. Nevertheless, we had a lot of interest all along.
+
+
+Thank you for reading!
+
+
+
+
